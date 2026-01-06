@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ARCS BLE NetCfg</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="container">
+    <header>
+      <h1>ARCS BLE 配网工具</h1>
+      <p>基于 NETCFG_BLE 协议，通过 BLE 配置 WiFi</p>
+    </header>
+
+    <section class="panel">
+      <h2>设备扫描</h2>
+      <div class="row">
+        <button id="scan">扫描设备</button>
+        <select id="device-list"></select>
+        <button id="connect">连接</button>
+        <button id="disconnect" class="secondary">断开</button>
+      </div>
+      <div id="device-status" class="hint">未连接</div>
+    </section>
+
+    <section class="panel">
+      <h2>WiFi 配置</h2>
+      <div class="form">
+        <label>
+          SSID
+          <input id="ssid" placeholder="请输入 WiFi 名称" />
+        </label>
+        <label>
+          密码
+          <input id="password" type="password" placeholder="请输入 WiFi 密码" />
+        </label>
+        <div class="row">
+          <button id="configure">开始配网</button>
+          <button id="start" class="secondary">发送 START</button>
+          <button id="send-ssid" class="secondary">发送 SSID</button>
+          <button id="send-pwd" class="secondary">发送 PWD</button>
+          <button id="done" class="secondary">发送 DONE</button>
+          <button id="reboot" class="secondary">重启设备</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>状态与日志</h2>
+      <div id="status" class="status">等待状态...</div>
+      <pre id="log" class="log"></pre>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
