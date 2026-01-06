@@ -178,6 +178,10 @@ button:disabled {
   box-shadow: 0 10px 24px rgba(15, 23, 42, 0.25);
 }
 
+.connect-card.error {
+  background: #7f1d1d;
+}
+
 .connect-title {
   font-size: 18px;
   font-weight: 700;
@@ -195,6 +199,10 @@ button:disabled {
   border: 3px solid rgba(248, 250, 252, 0.35);
   border-top-color: #f8fafc;
   animation: spin 1s linear infinite;
+}
+
+.connect-card.error .spinner {
+  display: none;
 }
 
 @keyframes spin {

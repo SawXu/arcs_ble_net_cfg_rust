@@ -15,14 +15,39 @@ const statusEl = document.getElementById("status");
 const scanButton = document.getElementById("scan");
 const connectOverlay = document.getElementById("connect-overlay");
 const connectTarget = document.getElementById("connect-target");
+const connectCard = document.getElementById("connect-card");
 
 let scanning = false;
 let connectingId = null;
+let connectTimer = null;
 
 const log = (message) => {
   const ts = new Date().toLocaleTimeString();
   logEl.textContent += `[${ts}] ${message}\n`;
   logEl.scrollTop = logEl.scrollHeight;
+};
+
+const showConnectOverlay = (title, sub, isError = false) => {
+  if (!connectOverlay || !connectCard) {
+    return;
+  }
+  connectOverlay.classList.remove("hidden");
+  connectCard.classList.toggle("error", isError);
+  const titleEl = connectCard.querySelector(".connect-title");
+  if (titleEl) {
+    titleEl.textContent = title;
+  }
+  if (connectTarget) {
+    connectTarget.textContent = sub || "";
+  }
+};
+
+const hideConnectOverlay = () => {
+  if (!connectOverlay || !connectCard) {
+    return;
+  }
+  connectOverlay.classList.add("hidden");
+  connectCard.classList.remove("error");
 };
 
 const setStatusState = (message, state) => {
@@ -118,6 +143,7 @@ const connectDevice = async (id, name, item, actionEl) => {
     log("正在连接设备，请稍候...");
     return;
   }
+  const connectTimeoutMs = 15000;
   try {
     const { invoke } = getTauriApi();
     if (!invoke) {
@@ -125,12 +151,7 @@ const connectDevice = async (id, name, item, actionEl) => {
       return;
     }
     connectingId = id;
-    if (connectTarget) {
-      connectTarget.textContent = name || id || "设备";
-    }
-    if (connectOverlay) {
-      connectOverlay.classList.remove("hidden");
-    }
+    showConnectOverlay("正在连接...", name || id || "设备");
     if (item) {
       item.classList.add("disabled");
     }
@@ -138,18 +159,47 @@ const connectDevice = async (id, name, item, actionEl) => {
       actionEl.textContent = "连接中...";
     }
     log(`开始连接: ${name || id}`);
-    await invoke("connect_device", { id });
+    const connectPromise = invoke("connect_device", { id });
+    connectTimer = setTimeout(async () => {
+      if (connectingId !== id) {
+        return;
+      }
+      log("连接超时，已取消");
+      showConnectOverlay("连接失败", "连接超时", true);
+      try {
+        await invoke("disconnect_device");
+      } catch (err) {
+        log(`取消连接失败: ${err}`);
+      }
+      connectingId = null;
+      setTimeout(() => {
+        hideConnectOverlay();
+      }, 2000);
+      if (item) {
+        item.classList.remove("disabled");
+      }
+      if (actionEl) {
+        actionEl.textContent = "点击连接";
+      }
+    }, connectTimeoutMs);
+    await connectPromise;
     setConnected(name);
     showConfigPage();
     log("连接成功");
   } catch (err) {
     log(`连接失败: ${err}`);
+    showConnectOverlay("连接失败", String(err), true);
+    setTimeout(() => {
+      hideConnectOverlay();
+    }, 2000);
   } finally {
     if (connectingId === id) {
       connectingId = null;
-      if (connectOverlay) {
-        connectOverlay.classList.add("hidden");
+      if (connectTimer) {
+        clearTimeout(connectTimer);
+        connectTimer = null;
       }
+      hideConnectOverlay();
       if (item) {
         item.classList.remove("disabled");
       }
