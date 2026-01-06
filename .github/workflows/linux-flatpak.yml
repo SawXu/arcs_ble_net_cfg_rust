@@ -1,0 +1,48 @@
+name: Linux Flatpak
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libgtk-3-dev \
+            libwebkit2gtk-4.0-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            flatpak \
+            flatpak-builder \
+            appstream-util
+
+      - name: Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Build (Tauri Flatpak)
+        uses: tauri-apps/tauri-action@v0
+        with:
+          projectPath: src-tauri
+          args: --bundles flatpak
+
+      - name: Upload Flatpak bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-flatpak
+          path: src-tauri/target/release/bundle/flatpak/*.flatpak
