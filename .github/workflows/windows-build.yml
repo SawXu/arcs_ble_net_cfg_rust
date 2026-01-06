@@ -2,6 +2,7 @@ name: Windows Build
 
 on:
   workflow_dispatch:
+  pull_request:
   push:
     branches:
       - main
@@ -22,23 +23,20 @@ jobs:
         with:
           workspaces: src-tauri
 
-      - name: Download WebView2 Offline Installer
-        shell: pwsh
-        run: |
-          $outDir = "${{ github.workspace }}\\src-tauri\\webview2"
-          New-Item -ItemType Directory -Force -Path $outDir | Out-Null
-          $url = "https://go.microsoft.com/fwlink/p/?LinkId=2124703"
-          $outFile = Join-Path $outDir "MicrosoftEdgeWebView2RuntimeInstallerX64.exe"
-          Invoke-WebRequest -Uri $url -OutFile $outFile
-
       - name: Build (Tauri)
         uses: tauri-apps/tauri-action@v0
         with:
           projectPath: src-tauri
-          args: ""
+          args: --bundles nsis
+
+      - name: Collect installer
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path artifacts | Out-Null
+          Get-ChildItem -Path src-tauri/target/release/bundle/nsis/*-setup.exe | Copy-Item -Destination artifacts
 
       - name: Upload bundles
         uses: actions/upload-artifact@v4
         with:
           name: windows-bundles
-          path: src-tauri/target/release/bundle
+          path: artifacts/*-setup.exe
