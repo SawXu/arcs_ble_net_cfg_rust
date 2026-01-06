@@ -27,6 +27,7 @@ jobs:
         with:
           projectPath: src-tauri
           args: build
+          tauriVersion: "2.0.0"
 
       - name: Upload bundles
         uses: actions/upload-artifact@v4

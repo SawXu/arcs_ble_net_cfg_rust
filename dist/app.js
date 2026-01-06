@@ -1,6 +1,9 @@
-const tauriApi = window.__TAURI__ || {};
-const invoke = tauriApi.tauri?.invoke || tauriApi.invoke;
-const listen = tauriApi.event?.listen;
+const getTauriApi = () => {
+  const tauriApi = window.__TAURI__ || {};
+  const invokeFn = tauriApi.core?.invoke || tauriApi.tauri?.invoke || tauriApi.invoke;
+  const listenFn = tauriApi.event?.listen;
+  return { invoke: invokeFn, listen: listenFn };
+};
 
 const deviceList = document.getElementById("device-list");
 const pageScan = document.getElementById("page-scan");
@@ -17,10 +20,6 @@ const log = (message) => {
   const ts = new Date().toLocaleTimeString();
   logEl.textContent += `[${ts}] ${message}\n`;
   logEl.scrollTop = logEl.scrollHeight;
-};
-
-const setStatus = (message) => {
-  statusEl.textContent = message;
 };
 
 const setStatusState = (message, state) => {
@@ -90,6 +89,7 @@ const scanDevices = async () => {
   scanButton.disabled = true;
   log("开始扫描...");
   try {
+    const { invoke } = getTauriApi();
     if (!invoke) {
       log("Tauri API 未就绪，无法调用扫描");
       return;
@@ -111,6 +111,7 @@ const scanDevices = async () => {
 
 const connectDevice = async (id, name) => {
   try {
+    const { invoke } = getTauriApi();
     if (!invoke) {
       log("Tauri API 未就绪，无法连接设备");
       return;
@@ -126,6 +127,7 @@ const connectDevice = async (id, name) => {
 
 const disconnectDevice = async () => {
   try {
+    const { invoke } = getTauriApi();
     if (!invoke) {
       log("Tauri API 未就绪，无法断开设备");
       return;
@@ -147,6 +149,7 @@ const configureWifi = async () => {
     return;
   }
   try {
+    const { invoke } = getTauriApi();
     if (!invoke) {
       log("Tauri API 未就绪，无法发送配网");
       return;
@@ -160,104 +163,45 @@ const configureWifi = async () => {
   }
 };
 
-const sendStart = async () => {
-  try {
-    if (!invoke) {
-      log("Tauri API 未就绪，无法发送 START");
-      return;
-    }
-    await invoke("send_start");
-    log("START 已发送");
-  } catch (err) {
-    log(`START 发送失败: ${err}`);
-  }
-};
-
-const sendSsid = async () => {
-  const ssid = document.getElementById("ssid").value.trim();
-  if (!ssid) {
-    log("请输入 SSID");
-    return;
+const attachListener = async () => {
+  const { listen } = getTauriApi();
+  if (!listen) {
+    log("Tauri 事件系统未就绪，无法接收状态通知");
+    return false;
   }
   try {
-    if (!invoke) {
-      log("Tauri API 未就绪，无法发送 SSID");
-      return;
-    }
-    await invoke("send_ssid", { ssid });
-    log("SSID 已发送");
+    await listen("netcfg_status", (event) => {
+      const { code, name, hex, raw_hex: rawHex } = event.payload;
+      if (code === 0x0104) {
+        setStatusState("配网成功", "success");
+      } else if (code === 0x010A) {
+        setStatusState("配网失败", "error");
+      } else if (rawHex) {
+        setStatusState(`设备状态: ${name} (${hex}) RAW[${rawHex}]`, "info");
+      } else {
+        setStatusState(`设备状态: ${name} (${hex})`, "info");
+      }
+
+      if (rawHex) {
+        log(`状态通知: ${name} (${hex}) RAW[${rawHex}]`);
+      } else {
+        log(`状态通知: ${name} (${hex})`);
+      }
+    });
   } catch (err) {
-    log(`SSID 发送失败: ${err}`);
+    log(`事件监听失败: ${err}`);
+    return false;
   }
+  log("事件监听已注册");
+  return true;
 };
-
-const sendPwd = async () => {
-  const password = document.getElementById("password").value;
-  try {
-    if (!invoke) {
-      log("Tauri API 未就绪，无法发送 PWD");
-      return;
-    }
-    await invoke("send_password", { password });
-    log("PWD 已发送");
-  } catch (err) {
-    log(`PWD 发送失败: ${err}`);
-  }
-};
-
-const sendDone = async () => {
-  try {
-    if (!invoke) {
-      log("Tauri API 未就绪，无法发送 DONE");
-      return;
-    }
-    await invoke("send_done");
-    log("DONE 已发送");
-  } catch (err) {
-    log(`DONE 发送失败: ${err}`);
-  }
-};
-
-const sendReboot = async () => {
-  try {
-    if (!invoke) {
-      log("Tauri API 未就绪，无法发送 REBOOT");
-      return;
-    }
-    await invoke("send_reboot");
-    log("REBOOT 已发送");
-  } catch (err) {
-    log(`REBOOT 发送失败: ${err}`);
-  }
-};
-
-if (listen) {
-  listen("netcfg_status", (event) => {
-    const { code, name, hex, raw_hex: rawHex } = event.payload;
-    if (code === 0x0104) {
-      setStatusState("配网成功", "success");
-    } else if (code === 0x010A) {
-      setStatusState("配网失败", "error");
-    } else if (rawHex) {
-      setStatusState(`设备状态: ${name} (${hex}) RAW[${rawHex}]`, "info");
-    } else {
-      setStatusState(`设备状态: ${name} (${hex})`, "info");
-    }
-
-    if (rawHex) {
-      log(`状态通知: ${name} (${hex}) RAW[${rawHex}]`);
-    } else {
-      log(`状态通知: ${name} (${hex})`);
-    }
-  });
-} else {
-  log("Tauri 事件系统未就绪，无法接收状态通知");
-}
 
 window.addEventListener("DOMContentLoaded", () => {
+  const { invoke } = getTauriApi();
   if (!invoke) {
     log("未检测到 Tauri 环境，请不要用浏览器直接打开 dist/index.html");
   }
+  attachListener();
   document.getElementById("scan").addEventListener("click", scanDevices);
   document.getElementById("disconnect").addEventListener("click", disconnectDevice);
   document.getElementById("back").addEventListener("click", () => {

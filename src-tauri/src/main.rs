@@ -1,10 +1,10 @@
 use std::time::Duration;
 
 use btleplug::api::{Central, CharPropFlags, Manager as _, Peripheral as _, ScanFilter, WriteType};
-use btleplug::platform::{Adapter, Manager, Peripheral};
+use btleplug::platform::{Adapter, Manager as BleManager, Peripheral};
 use futures::StreamExt;
 use serde::Serialize;
-use tauri::{AppHandle, Manager as _, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
@@ -39,6 +39,12 @@ struct StatusEvent {
     raw_hex: String,
 }
 
+#[derive(Clone, Serialize)]
+struct BleNotificationEvent {
+    uuid: String,
+    raw_hex: String,
+}
+
 fn status_name(code: u16) -> &'static str {
     match code {
         0x0100 => "READY",
@@ -69,7 +75,7 @@ async fn ensure_adapter(state: &AppState) -> Result<Adapter, String> {
         return Ok(adapter);
     }
 
-    let manager = Manager::new().await.map_err(|e| e.to_string())?;
+    let manager = BleManager::new().await.map_err(|e| e.to_string())?;
     let adapters = manager.adapters().await.map_err(|e| e.to_string())?;
     let adapter = adapters
         .into_iter()
@@ -209,7 +215,7 @@ async fn listen_status_notifications(app: AppHandle, peripheral: Peripheral) {
     let mut stream = match peripheral.notifications().await {
         Ok(stream) => stream,
         Err(err) => {
-            let _ = app.emit_all(
+            let _ = app.emit(
                 "netcfg_status",
                 StatusEvent {
                     code: 0,
@@ -221,8 +227,26 @@ async fn listen_status_notifications(app: AppHandle, peripheral: Peripheral) {
             return;
         }
     };
+    println!("BLE notify stream started");
 
     while let Some(notification) = stream.next().await {
+        let raw_hex = notification
+            .value
+            .iter()
+            .map(|b| format!("{:02X}", b))
+            .collect::<Vec<_>>()
+            .join(" ");
+        println!(
+            "BLE notification uuid={} raw=[{}]",
+            notification.uuid, raw_hex
+        );
+        let _ = app.emit(
+            "ble_notification",
+            BleNotificationEvent {
+                uuid: notification.uuid.to_string(),
+                raw_hex: raw_hex.clone(),
+            },
+        );
         if notification.uuid != STATUS_UUID {
             continue;
         }
@@ -230,19 +254,16 @@ async fn listen_status_notifications(app: AppHandle, peripheral: Peripheral) {
             continue;
         }
         let code = u16::from_le_bytes([notification.value[0], notification.value[1]]);
-        let raw_hex = notification
-            .value
-            .iter()
-            .map(|b| format!("{:02X}", b))
-            .collect::<Vec<_>>()
-            .join(" ");
         let event = StatusEvent {
             code,
             name: status_name(code).to_string(),
             hex: format!("0x{code:04X}"),
             raw_hex,
         };
-        let _ = app.emit_all("netcfg_status", event);
+        println!("Emit netcfg_status code={} hex={}", event.code, event.hex);
+        if let Err(err) = app.emit("netcfg_status", event) {
+            println!("Emit netcfg_status failed: {}", err);
+        }
     }
 
     let state = app.state::<AppState>();
@@ -363,22 +384,28 @@ async fn connect_device(state: State<'_, AppState>, app: AppHandle, id: String) 
     }
 
     let (_write_char, status_char) = find_characteristics(&peripheral).await?;
-    if status_char
+    if !status_char
         .properties
         .contains(CharPropFlags::NOTIFY)
-        || status_char.properties.contains(CharPropFlags::INDICATE)
+        && !status_char.properties.contains(CharPropFlags::INDICATE)
     {
-        peripheral
-            .subscribe(&status_char)
-            .await
-            .map_err(|e| e.to_string())?;
-    } else {
-        let _ = app.emit_all(
+        let _ = app.emit(
             "netcfg_status",
             StatusEvent {
                 code: 0,
                 name: "STATUS_CHAR_NO_NOTIFY".to_string(),
                 hex: "0x0000".to_string(),
+                raw_hex: String::new(),
+            },
+        );
+    }
+    if let Err(err) = peripheral.subscribe(&status_char).await {
+        let _ = app.emit(
+            "netcfg_status",
+            StatusEvent {
+                code: 0,
+                name: "SUBSCRIBE_ERROR".to_string(),
+                hex: err.to_string(),
                 raw_hex: String::new(),
             },
         );
@@ -403,39 +430,6 @@ async fn disconnect_device(state: State<'_, AppState>) -> Result<(), String> {
     *state.peripheral.lock().await = None;
     *state.listening.lock().await = false;
     Ok(())
-}
-
-#[tauri::command]
-async fn send_start(state: State<'_, AppState>) -> Result<(), String> {
-    send_opcode(state.inner(), 0xA001, &[]).await
-}
-
-#[tauri::command]
-async fn send_ssid(state: State<'_, AppState>, ssid: String) -> Result<(), String> {
-    let bytes = ssid.as_bytes();
-    if bytes.len() > 36 {
-        return Err("SSID length exceeds 36 bytes".to_string());
-    }
-    send_opcode(state.inner(), 0xA002, bytes).await
-}
-
-#[tauri::command]
-async fn send_password(state: State<'_, AppState>, password: String) -> Result<(), String> {
-    let bytes = password.as_bytes();
-    if bytes.len() > 64 {
-        return Err("Password length exceeds 64 bytes".to_string());
-    }
-    send_opcode(state.inner(), 0xA003, bytes).await
-}
-
-#[tauri::command]
-async fn send_done(state: State<'_, AppState>) -> Result<(), String> {
-    send_opcode(state.inner(), 0xA010, &[]).await
-}
-
-#[tauri::command]
-async fn send_reboot(state: State<'_, AppState>) -> Result<(), String> {
-    send_opcode(state.inner(), 0xA011, &[]).await
 }
 
 #[tauri::command]
@@ -483,12 +477,7 @@ fn main() {
             scan_devices,
             connect_device,
             disconnect_device,
-            configure_wifi,
-            send_start,
-            send_ssid,
-            send_password,
-            send_done,
-            send_reboot
+            configure_wifi
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

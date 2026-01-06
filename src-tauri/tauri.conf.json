@@ -1,18 +1,18 @@
 {
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "ARCS BLE NetCfg",
+  "version": "0.1.0",
+  "identifier": "com.arcs.ble.netcfg",
   "build": {
-    "beforeBuildCommand": "",
-    "beforeDevCommand": "",
-    "devPath": "../dist",
-    "distDir": "../dist",
-    "withGlobalTauri": true
+    "frontendDist": "../dist"
   },
-  "package": {
-    "productName": "ARCS BLE NetCfg",
-    "version": "0.1.0"
-  },
-  "tauri": {
-    "bundle": {
-      "identifier": "com.arcs.ble.netcfg"
+  "app": {
+    "withGlobalTauri": true,
+    "security": {
+      "capabilities": [
+        "default"
+      ],
+      "csp": "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'"
     },
     "windows": [
       {
@@ -21,15 +21,6 @@
         "height": 720,
         "resizable": true
       }
-    ],
-    "allowlist": {
-      "all": false,
-      "shell": {
-        "all": false
-      }
-    },
-    "security": {
-      "csp": "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'"
-    }
+    ]
   }
 }
