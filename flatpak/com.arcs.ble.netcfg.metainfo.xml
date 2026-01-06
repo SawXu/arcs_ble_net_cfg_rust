@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>com.arcs.ble.netcfg</id>
+  <name>ARCS BLE NetCfg</name>
+  <summary>BLE WiFi provisioning tool</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <launchable type="desktop-id">com.arcs.ble.netcfg.desktop</launchable>
+  <description>
+    <p>Provision WiFi credentials to devices over BLE using NETCFG_BLE.</p>
+  </description>
+</component>

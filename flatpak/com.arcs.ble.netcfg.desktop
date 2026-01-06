@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=ARCS BLE NetCfg
+Comment=BLE WiFi provisioning tool
+Exec=arcs_ble_net_cfg
+Icon=com.arcs.ble.netcfg
+Terminal=false
+Type=Application
+Categories=Utility;

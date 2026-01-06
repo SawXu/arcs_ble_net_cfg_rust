@@ -1,0 +1,26 @@
+app-id: com.arcs.ble.netcfg
+appstream-compose: false
+runtime: org.gnome.Platform
+runtime-version: '48'
+sdk: org.gnome.Sdk
+command: arcs_ble_net_cfg
+finish-args:
+  - --share=network
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --system-talk-name=org.bluez
+  - --device=all
+
+modules:
+  - name: arcs-ble-net-cfg
+    buildsystem: simple
+    build-commands:
+      - install -Dm755 arcs_ble_net_cfg /app/bin/arcs_ble_net_cfg
+      - install -Dm644 flatpak/com.arcs.ble.netcfg.desktop /app/share/applications/com.arcs.ble.netcfg.desktop
+      - install -Dm644 flatpak/com.arcs.ble.netcfg.metainfo.xml /app/share/metainfo/com.arcs.ble.netcfg.metainfo.xml
+      - install -Dm644 src-tauri/icons/icon.png /app/share/icons/hicolor/256x256/apps/com.arcs.ble.netcfg.png
+    sources:
+      - type: dir
+        path: ..
+      - type: file
+        path: ../src-tauri/target/release/arcs_ble_net_cfg
