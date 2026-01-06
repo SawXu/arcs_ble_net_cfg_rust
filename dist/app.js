@@ -13,8 +13,11 @@ const deviceStatus = document.getElementById("device-status");
 const logEl = document.getElementById("log");
 const statusEl = document.getElementById("status");
 const scanButton = document.getElementById("scan");
+const connectOverlay = document.getElementById("connect-overlay");
+const connectTarget = document.getElementById("connect-target");
 
 let scanning = false;
+let connectingId = null;
 
 const log = (message) => {
   const ts = new Date().toLocaleTimeString();
@@ -65,7 +68,8 @@ const loadDevices = (devices) => {
     const meta = document.createElement("div");
     meta.className = "device-meta";
     const rssi = device.rssi === null ? "RSSI: -" : `RSSI: ${device.rssi}`;
-    meta.textContent = rssi;
+    const mac = device.id ? `MAC: ${device.id}` : "MAC: -";
+    meta.textContent = `${mac} · ${rssi}`;
     left.appendChild(title);
     left.appendChild(meta);
 
@@ -75,7 +79,7 @@ const loadDevices = (devices) => {
 
     item.appendChild(left);
     item.appendChild(action);
-    item.addEventListener("click", () => connectDevice(device.id, device.name));
+    item.addEventListener("click", () => connectDevice(device.id, device.name, item, action));
     deviceList.appendChild(item);
   });
 };
@@ -109,19 +113,50 @@ const scanDevices = async () => {
   }
 };
 
-const connectDevice = async (id, name) => {
+const connectDevice = async (id, name, item, actionEl) => {
+  if (connectingId) {
+    log("正在连接设备，请稍候...");
+    return;
+  }
   try {
     const { invoke } = getTauriApi();
     if (!invoke) {
       log("Tauri API 未就绪，无法连接设备");
       return;
     }
+    connectingId = id;
+    if (connectTarget) {
+      connectTarget.textContent = name || id || "设备";
+    }
+    if (connectOverlay) {
+      connectOverlay.classList.remove("hidden");
+    }
+    if (item) {
+      item.classList.add("disabled");
+    }
+    if (actionEl) {
+      actionEl.textContent = "连接中...";
+    }
+    log(`开始连接: ${name || id}`);
     await invoke("connect_device", { id });
     setConnected(name);
     showConfigPage();
     log("连接成功");
   } catch (err) {
     log(`连接失败: ${err}`);
+  } finally {
+    if (connectingId === id) {
+      connectingId = null;
+      if (connectOverlay) {
+        connectOverlay.classList.add("hidden");
+      }
+      if (item) {
+        item.classList.remove("disabled");
+      }
+      if (actionEl) {
+        actionEl.textContent = "点击连接";
+      }
+    }
   }
 };
 
