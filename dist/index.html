@@ -13,19 +13,21 @@
       <p>基于 NETCFG_BLE 协议，通过 BLE 配置 WiFi</p>
     </header>
 
-    <section class="panel">
-      <h2>设备扫描</h2>
-      <div class="row">
-        <button id="scan">扫描设备</button>
-        <select id="device-list"></select>
-        <button id="connect">连接</button>
-        <button id="disconnect" class="secondary">断开</button>
+    <section id="page-scan" class="panel">
+      <div class="row space-between">
+        <h2>设备扫描</h2>
+        <button id="scan" class="secondary">重新扫描</button>
       </div>
-      <div id="device-status" class="hint">未连接</div>
+      <div id="scan-hint" class="hint">正在扫描...</div>
+      <ul id="device-list" class="device-list"></ul>
     </section>
 
-    <section class="panel">
-      <h2>WiFi 配置</h2>
+    <section id="page-config" class="panel hidden">
+      <div class="row space-between">
+        <h2>WiFi 配置</h2>
+        <button id="back" class="secondary">返回设备列表</button>
+      </div>
+      <div id="device-status" class="hint">未连接</div>
       <div class="form">
         <label>
           SSID
@@ -37,18 +39,18 @@
         </label>
         <div class="row">
           <button id="configure">开始配网</button>
-          <button id="start" class="secondary">发送 START</button>
-          <button id="send-ssid" class="secondary">发送 SSID</button>
-          <button id="send-pwd" class="secondary">发送 PWD</button>
-          <button id="done" class="secondary">发送 DONE</button>
-          <button id="reboot" class="secondary">重启设备</button>
         </div>
+        <button id="disconnect" class="secondary">断开设备</button>
       </div>
     </section>
 
     <section class="panel">
-      <h2>状态与日志</h2>
+      <h2>设备状态</h2>
       <div id="status" class="status">等待状态...</div>
+    </section>
+
+    <section class="panel">
+      <h2>日志</h2>
       <pre id="log" class="log"></pre>
     </section>
   </main>

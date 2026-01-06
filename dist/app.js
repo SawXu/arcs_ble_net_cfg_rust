@@ -3,9 +3,15 @@ const invoke = tauriApi.tauri?.invoke || tauriApi.invoke;
 const listen = tauriApi.event?.listen;
 
 const deviceList = document.getElementById("device-list");
+const pageScan = document.getElementById("page-scan");
+const pageConfig = document.getElementById("page-config");
+const scanHint = document.getElementById("scan-hint");
 const deviceStatus = document.getElementById("device-status");
 const logEl = document.getElementById("log");
 const statusEl = document.getElementById("status");
+const scanButton = document.getElementById("scan");
+
+let scanning = false;
 
 const log = (message) => {
   const ts = new Date().toLocaleTimeString();
@@ -17,57 +23,101 @@ const setStatus = (message) => {
   statusEl.textContent = message;
 };
 
+const setStatusState = (message, state) => {
+  statusEl.textContent = message;
+  statusEl.classList.remove("success", "error", "info");
+  if (state) {
+    statusEl.classList.add(state);
+  }
+};
+
 const setConnected = (name) => {
   deviceStatus.textContent = name ? `已连接: ${name}` : "未连接";
+};
+
+const showScanPage = () => {
+  pageScan.classList.remove("hidden");
+  pageConfig.classList.add("hidden");
+};
+
+const showConfigPage = () => {
+  pageScan.classList.add("hidden");
+  pageConfig.classList.remove("hidden");
 };
 
 const loadDevices = (devices) => {
   deviceList.innerHTML = "";
   if (!devices.length) {
-    const option = document.createElement("option");
-    option.value = "";
-    option.textContent = "未发现设备";
-    deviceList.appendChild(option);
+    const empty = document.createElement("li");
+    empty.className = "device-item";
+    empty.textContent = "未发现设备";
+    deviceList.appendChild(empty);
     return;
   }
   devices.forEach((device) => {
-    const option = document.createElement("option");
-    option.value = device.id;
-    const tag = device.matched ? "*" : "";
-    const rssi = device.rssi === null ? "" : ` RSSI:${device.rssi}`;
-    option.textContent = `${tag}${device.name}${rssi}`;
-    deviceList.appendChild(option);
+    const item = document.createElement("li");
+    item.className = "device-item";
+    item.dataset.id = device.id;
+
+    const left = document.createElement("div");
+    const title = document.createElement("div");
+    const tag = device.matched ? " *" : "";
+    title.textContent = `${device.name}${tag}`;
+    const meta = document.createElement("div");
+    meta.className = "device-meta";
+    const rssi = device.rssi === null ? "RSSI: -" : `RSSI: ${device.rssi}`;
+    meta.textContent = rssi;
+    left.appendChild(title);
+    left.appendChild(meta);
+
+    const action = document.createElement("span");
+    action.className = "device-meta";
+    action.textContent = "点击连接";
+
+    item.appendChild(left);
+    item.appendChild(action);
+    item.addEventListener("click", () => connectDevice(device.id, device.name));
+    deviceList.appendChild(item);
   });
 };
 
 const scanDevices = async () => {
+  if (scanning) {
+    log("扫描进行中，请稍候...");
+    return;
+  }
+  scanning = true;
+  scanButton.disabled = true;
   log("开始扫描...");
   try {
     if (!invoke) {
       log("Tauri API 未就绪，无法调用扫描");
       return;
     }
+    scanHint.textContent = "正在扫描...";
     const devices = await invoke("scan_devices", { timeout_ms: 3000 });
-    loadDevices(devices);
-    log(`扫描完成，发现 ${devices.length} 个设备`);
+    const filtered = devices.filter((device) => device.name && device.name !== "Unknown");
+    loadDevices(filtered);
+    scanHint.textContent = `扫描完成，发现 ${filtered.length} 个设备`;
+    log(`扫描完成，发现 ${filtered.length} 个设备`);
   } catch (err) {
     log(`扫描失败: ${err}`);
+    scanHint.textContent = "扫描失败，请重试";
+  } finally {
+    scanning = false;
+    scanButton.disabled = false;
   }
 };
 
-const connectDevice = async () => {
-  const id = deviceList.value;
-  if (!id) {
-    log("请选择设备");
-    return;
-  }
+const connectDevice = async (id, name) => {
   try {
     if (!invoke) {
       log("Tauri API 未就绪，无法连接设备");
       return;
     }
     await invoke("connect_device", { id });
-    setConnected(deviceList.options[deviceList.selectedIndex].textContent);
+    setConnected(name);
+    showConfigPage();
     log("连接成功");
   } catch (err) {
     log(`连接失败: ${err}`);
@@ -82,6 +132,7 @@ const disconnectDevice = async () => {
     }
     await invoke("disconnect_device");
     setConnected("");
+    showScanPage();
     log("已断开连接");
   } catch (err) {
     log(`断开失败: ${err}`);
@@ -100,10 +151,12 @@ const configureWifi = async () => {
       log("Tauri API 未就绪，无法发送配网");
       return;
     }
+    setStatusState("配网中...", "info");
     await invoke("configure_wifi", { ssid, password });
     log("配网指令已发送");
   } catch (err) {
     log(`配网失败: ${err}`);
+    setStatusState("配网失败", "error");
   }
 };
 
@@ -180,9 +233,22 @@ const sendReboot = async () => {
 
 if (listen) {
   listen("netcfg_status", (event) => {
-    const { code, name, hex } = event.payload;
-    setStatus(`设备状态: ${name} (${hex})`);
-    log(`状态通知: ${name} (${hex})`);
+    const { code, name, hex, raw_hex: rawHex } = event.payload;
+    if (code === 0x0104) {
+      setStatusState("配网成功", "success");
+    } else if (code === 0x010A) {
+      setStatusState("配网失败", "error");
+    } else if (rawHex) {
+      setStatusState(`设备状态: ${name} (${hex}) RAW[${rawHex}]`, "info");
+    } else {
+      setStatusState(`设备状态: ${name} (${hex})`, "info");
+    }
+
+    if (rawHex) {
+      log(`状态通知: ${name} (${hex}) RAW[${rawHex}]`);
+    } else {
+      log(`状态通知: ${name} (${hex})`);
+    }
   });
 } else {
   log("Tauri 事件系统未就绪，无法接收状态通知");
@@ -193,13 +259,12 @@ window.addEventListener("DOMContentLoaded", () => {
     log("未检测到 Tauri 环境，请不要用浏览器直接打开 dist/index.html");
   }
   document.getElementById("scan").addEventListener("click", scanDevices);
-  document.getElementById("connect").addEventListener("click", connectDevice);
   document.getElementById("disconnect").addEventListener("click", disconnectDevice);
+  document.getElementById("back").addEventListener("click", () => {
+    showScanPage();
+  });
   document.getElementById("configure").addEventListener("click", configureWifi);
-  document.getElementById("start").addEventListener("click", sendStart);
-  document.getElementById("send-ssid").addEventListener("click", sendSsid);
-  document.getElementById("send-pwd").addEventListener("click", sendPwd);
-  document.getElementById("done").addEventListener("click", sendDone);
-  document.getElementById("reboot").addEventListener("click", sendReboot);
   setConnected("");
+  showScanPage();
+  scanDevices();
 });

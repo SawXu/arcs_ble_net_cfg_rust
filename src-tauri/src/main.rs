@@ -10,7 +10,7 @@ use uuid::Uuid;
 
 const SERVICE_UUID: Uuid = Uuid::from_u128(0x0000e402_0000_1000_8000_00805f9b34fb);
 const WRITE_UUID: Uuid = Uuid::from_u128(0x0000e403_0000_1000_8000_00805f9b34fb);
-const STATUS_UUID: Uuid = Uuid::from_u128(0x0000e404_0000_1000_8000_00805f9b34fb);
+const STATUS_UUID: Uuid = Uuid::from_u128(0x0000e403_0000_1000_8000_00805f9b34fb);
 
 const PREFIX_ID: u16 = 0x03e4;
 const FIRST_PACKET_DATA_MAX: usize = 11; // 20 - 3 - 6
@@ -20,6 +20,7 @@ const NEXT_PACKET_DATA_MAX: usize = 17; // 20 - 3
 struct AppState {
     adapter: Mutex<Option<Adapter>>,
     peripheral: Mutex<Option<Peripheral>>,
+    listening: Mutex<bool>,
 }
 
 #[derive(Serialize)]
@@ -35,6 +36,7 @@ struct StatusEvent {
     code: u16,
     name: String,
     hex: String,
+    raw_hex: String,
 }
 
 fn status_name(code: u16) -> &'static str {
@@ -213,6 +215,7 @@ async fn listen_status_notifications(app: AppHandle, peripheral: Peripheral) {
                     code: 0,
                     name: "NOTIFY_ERROR".to_string(),
                     hex: err.to_string(),
+                    raw_hex: String::new(),
                 },
             );
             return;
@@ -227,13 +230,23 @@ async fn listen_status_notifications(app: AppHandle, peripheral: Peripheral) {
             continue;
         }
         let code = u16::from_le_bytes([notification.value[0], notification.value[1]]);
+        let raw_hex = notification
+            .value
+            .iter()
+            .map(|b| format!("{:02X}", b))
+            .collect::<Vec<_>>()
+            .join(" ");
         let event = StatusEvent {
             code,
             name: status_name(code).to_string(),
             hex: format!("0x{code:04X}"),
+            raw_hex,
         };
         let _ = app.emit_all("netcfg_status", event);
     }
+
+    let state = app.state::<AppState>();
+    *state.listening.lock().await = false;
 }
 
 #[tauri::command]
@@ -296,6 +309,21 @@ async fn scan_devices(
 #[tauri::command]
 async fn connect_device(state: State<'_, AppState>, app: AppHandle, id: String) -> Result<(), String> {
     let adapter = ensure_adapter(&state).await?;
+
+    if let Some(existing) = state.peripheral.lock().await.clone() {
+        if existing.id().to_string() == id {
+            if existing.is_connected().await.map_err(|e| e.to_string())? {
+                let already_listening = *state.listening.lock().await;
+                if already_listening {
+                    return Ok(());
+                }
+            }
+        } else {
+            let _ = existing.disconnect().await;
+            *state.listening.lock().await = false;
+        }
+    }
+
     let peripherals = adapter.peripherals().await.map_err(|e| e.to_string())?;
     let peripheral = peripherals
         .into_iter()
@@ -351,12 +379,16 @@ async fn connect_device(state: State<'_, AppState>, app: AppHandle, id: String) 
                 code: 0,
                 name: "STATUS_CHAR_NO_NOTIFY".to_string(),
                 hex: "0x0000".to_string(),
+                raw_hex: String::new(),
             },
         );
     }
 
     *state.peripheral.lock().await = Some(peripheral.clone());
-    tauri::async_runtime::spawn(listen_status_notifications(app, peripheral));
+    if !*state.listening.lock().await {
+        *state.listening.lock().await = true;
+        tauri::async_runtime::spawn(listen_status_notifications(app, peripheral));
+    }
 
     Ok(())
 }
@@ -369,6 +401,7 @@ async fn disconnect_device(state: State<'_, AppState>) -> Result<(), String> {
         .await
         .map_err(|e| e.to_string())?;
     *state.peripheral.lock().await = None;
+    *state.listening.lock().await = false;
     Ok(())
 }
 

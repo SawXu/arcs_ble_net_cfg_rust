@@ -43,6 +43,14 @@ header p {
   align-items: center;
 }
 
+.row.space-between {
+  justify-content: space-between;
+}
+
+.hidden {
+  display: none;
+}
+
 .form {
   display: grid;
   gap: 16px;
@@ -83,13 +91,54 @@ button:disabled {
 }
 
 .status {
-  font-weight: 600;
+  font-weight: 900;
+  font-size: 40px;
   color: #0f172a;
   margin-bottom: 12px;
 }
 
+.status.success {
+  color: #15803d;
+}
+
+.status.error {
+  color: #b91c1c;
+}
+
+.status.info {
+  color: #0f172a;
+}
+
 .hint {
   margin-top: 10px;
+  color: #64748b;
+}
+
+.device-list {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0 0;
+  display: grid;
+  gap: 8px;
+}
+
+.device-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.device-item:hover {
+  background: #f8fafc;
+}
+
+.device-meta {
+  font-size: 12px;
   color: #64748b;
 }
 
