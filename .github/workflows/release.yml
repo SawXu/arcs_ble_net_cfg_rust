@@ -1,0 +1,76 @@
+name: Release Artifacts
+
+permissions:
+  contents: write
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Build (Tauri NSIS)
+        uses: tauri-apps/tauri-action@v0
+        with:
+          projectPath: src-tauri
+          args: --bundles nsis
+
+      - name: Upload release assets (Windows)
+        uses: softprops/action-gh-release@v2
+        with:
+          files: src-tauri/target/release/bundle/nsis/*-setup.exe
+
+  linux-flatpak:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libgtk-3-dev \
+            libwebkit2gtk-4.1-dev \
+            libjavascriptcoregtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            flatpak \
+            flatpak-builder \
+            appstream \
+            appstream-util
+
+      - name: Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Build Flatpak bundle
+        run: |
+          flatpak remote-add --if-not-exists --user flathub https://flathub.org/repo/flathub.flatpakrepo
+          cargo build --release --manifest-path src-tauri/Cargo.toml
+          flatpak-builder --user --force-clean --install-deps-from=flathub --repo=repo build-dir flatpak/com.arcs.ble.netcfg.yml
+          flatpak build-bundle --runtime-repo=https://flathub.org/repo/flathub.flatpakrepo repo arcs-ble-net-cfg.flatpak com.arcs.ble.netcfg
+
+      - name: Upload release assets (Flatpak)
+        uses: softprops/action-gh-release@v2
+        with:
+          files: arcs-ble-net-cfg.flatpak
