@@ -3,6 +3,14 @@
   "productName": "ARCS BLE NetCfg",
   "version": "0.1.0",
   "identifier": "com.arcs.ble.netcfg",
+  "bundle": {
+    "windows": {
+      "webviewInstallMode": {
+        "type": "offlineInstaller",
+        "path": "webview2/MicrosoftEdgeWebView2RuntimeInstallerX64.exe"
+      }
+    }
+  },
   "build": {
     "frontendDist": "../dist"
   },
