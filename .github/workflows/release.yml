@@ -74,3 +74,48 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: arcs-ble-net-cfg.flatpak
+
+  macos:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-26
+            label: macOS ARM64
+            arch: arm64
+          - runner: macos-15-intel
+            label: macOS x64
+            arch: x64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Build (Tauri DMG)
+        uses: tauri-apps/tauri-action@v0
+        with:
+          projectPath: src-tauri
+          args: --bundles dmg
+
+      - name: Rename DMG
+        shell: bash
+        run: |
+          mkdir -p artifacts
+          for file in src-tauri/target/release/bundle/dmg/*.dmg; do
+            base=$(basename "$file")
+            name="${base%.dmg}"
+            cp "$file" "artifacts/${name}-${{ matrix.arch }}.dmg"
+          done
+
+      - name: Upload release assets (${{ matrix.label }})
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*-${{ matrix.arch }}.dmg
