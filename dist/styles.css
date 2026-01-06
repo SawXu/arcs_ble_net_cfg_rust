@@ -30,6 +30,7 @@ header p {
   border-radius: 12px;
   margin-bottom: 16px;
   box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
+  position: relative;
 }
 
 .panel h2 {
@@ -137,9 +138,69 @@ button:disabled {
   background: #f8fafc;
 }
 
+.device-item.disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.device-item.disabled:hover {
+  background: #fff;
+}
+
 .device-meta {
   font-size: 12px;
   color: #64748b;
+}
+
+.connect-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.85);
+  border-radius: 12px;
+  z-index: 5;
+}
+
+.connect-overlay.hidden {
+  display: none;
+}
+
+.connect-card {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 16px 24px;
+  border-radius: 12px;
+  background: #0f172a;
+  color: #f8fafc;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.25);
+}
+
+.connect-title {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.connect-sub {
+  font-size: 12px;
+  color: #cbd5f5;
+}
+
+.spinner {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 3px solid rgba(248, 250, 252, 0.35);
+  border-top-color: #f8fafc;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .log {
